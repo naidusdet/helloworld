@@ -6,7 +6,6 @@ pipeline {
         KUBECONFIG = "$HOME/.kube/config"
     }
 
-    // Run this pipeline only on master
     when {
         branch 'master'
     }
@@ -18,12 +17,13 @@ pipeline {
             }
         }
 
-        stage('Parallel Execution') {
+        stage('Build & Docker Push') {
             parallel {
                 stage('Build') {
                     steps {
                         sh 'ls -la'
                         sh './gradlew clean build'
+                        archiveArtifacts artifacts: 'build/libs/**/*.jar', fingerprint: true
                     }
                 }
 
@@ -35,18 +35,25 @@ pipeline {
                                 docker build -t $DOCKER_IMAGE .
                                 docker push $DOCKER_IMAGE
                                 docker logout
+                                docker image prune -f
                             '''
                         }
                     }
                 }
+            }
+        }
 
-                stage('Deploy to Kubernetes') {
-                    steps {
-                        sh 'kubectl apply -f helloworld-config.yaml'
-                        sh 'kubectl apply -f helloworld-deployment.yaml'
-                        sh 'kubectl apply -f services.yaml'
-                        sh 'kubectl apply -f helloworld-ingress.yaml'
-                        sh 'kubectl rollout restart deployment helloworld-deployment'
+        stage('Deploy to Kubernetes') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    retry(2) {
+                        sh '''
+                            kubectl apply -f helloworld-config.yaml
+                            kubectl apply -f helloworld-deployment.yaml
+                            kubectl apply -f services.yaml
+                            kubectl apply -f helloworld-ingress.yaml
+                            kubectl rollout restart deployment helloworld-deployment
+                        '''
                     }
                 }
             }
