@@ -8,35 +8,50 @@ pipeline {
 
     stages {
         stage('Checkout') {
+            when {
+                branch 'master'
+            }
             steps {
                 git 'https://github.com/naidusdet/helloworld.git'
             }
         }
-        stage('Build') {
-            steps {
-                sh 'ls -la'
-                sh './gradlew clean build'
+
+        stage('Parallel stages') {
+            when {
+                branch 'master'
             }
-        }
-        stage('Docker Build & Push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker build -t $DOCKER_IMAGE .
-                        docker push $DOCKER_IMAGE
-                        docker logout
-                    '''
+                script {
+                    parallel(
+                        Build: {
+                            stage('Build') {
+                                sh 'ls -la'
+                                sh './gradlew clean build'
+                            }
+                        },
+                        DockerBuildPush: {
+                            stage('Docker Build & Push') {
+                                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                                    sh '''
+                                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                                        docker build -t $DOCKER_IMAGE .
+                                        docker push $DOCKER_IMAGE
+                                        docker logout
+                                    '''
+                                }
+                            }
+                        },
+                        Deploy: {
+                            stage('Deploy to Kubernetes') {
+                                sh 'kubectl apply -f helloworld-config.yaml'
+                                sh 'kubectl apply -f helloworld-deployment.yaml'
+                                sh 'kubectl apply -f services.yaml'
+                                sh 'kubectl apply -f helloworld-ingress.yaml'
+                                sh 'kubectl rollout restart deployment helloworld-deployment'
+                            }
+                        }
+                    )
                 }
-            }
-        }
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh 'kubectl apply -f helloworld-config.yaml'
-                sh 'kubectl apply -f helloworld-deployment.yaml'
-                sh 'kubectl apply -f services.yaml'
-                sh 'kubectl apply -f helloworld-ingress.yaml'
-                sh 'kubectl rollout restart deployment helloworld-deployment'
             }
         }
     }
