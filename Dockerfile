@@ -1,37 +1,22 @@
-# Use a base image with JDK
-FROM eclipse-temurin:23-jdk-alpine as builder
+# ---- Stage 1: Build the application ----
+FROM gradle:8.13-jdk17 AS builder
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the build.gradle and gradle wrapper files
-COPY build.gradle .
-COPY settings.gradle .
-COPY gradlew gradlew
-COPY gradle/ gradle/
+# Copy only necessary files
+COPY build.gradle settings.gradle ./
+COPY gradle gradle
+COPY src src
 
-RUN chmod +x gradlew
-# Download dependencies using Gradle
-RUN ./gradlew build --no-daemon
+# Pre-fetch dependencies and build using system Gradle
+RUN gradle dependencies --no-daemon
+RUN gradle bootJar --no-daemon
 
+# ---- Stage 2: Run the application ----
+FROM eclipse-temurin:17-jdk-alpine
 
-# Copy the source code
-COPY src ./src
-
-# Build the application (this will compile the code and package it)
-RUN ./gradlew bootJar --no-daemon --stacktrace
-
-# Use a minimal JRE base image to run the app
-FROM eclipse-temurin:23-jdk-alpine
-
-# Set the working directory in the container
 WORKDIR /app
+COPY --from=builder /app/build/libs/*.jar app.jar
 
-# Copy the built JAR file from the builder
-COPY --from=builder /app/build/libs/helloworld-0.0.1-SNAPSHOT.jar app.jar
-
-# Expose the port
 EXPOSE 8080
-
-# Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]
