@@ -18,18 +18,25 @@ pipeline {
                 sh './gradlew clean build'
             }
         }
-        stage('Docker Build & Push') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker build -t $DOCKER_IMAGE .
-                        docker push $DOCKER_IMAGE
-                        docker logout
-                    '''
-                }
-            }
-        }
+       stage('Docker Compose Build & Push') {
+           steps {
+               withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                   sh '''
+                       echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                       # Build using docker-compose
+                       DOCKER_IMAGE=$DOCKER_IMAGE docker-compose up --build -d
+
+                       # Push the built image manually (docker-compose does not push images)
+                       docker push $DOCKER_IMAGE
+
+                       docker-compose down
+                       docker logout
+                   '''
+               }
+           }
+       }
+
         stage('Deploy to Kubernetes') {
             steps {
                 sh 'kubectl apply -f helloworld-config.yaml'

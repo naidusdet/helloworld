@@ -4,7 +4,7 @@ services:
   helloworld:
     build: .
     container_name: helloworld
-    image: maheshboyalla/helloworld
+    image: ${DOCKER_IMAGE}
     ports:
       - "8080:8080"
     networks:
