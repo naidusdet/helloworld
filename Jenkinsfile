@@ -12,6 +12,7 @@ pipeline {
                 branch 'master'
             }
             steps {
+                echo "mahesh boyalla check for branch name"
                 echo "BRANCH_NAME: ${env.BRANCH_NAME}"
                 echo "GIT_BRANCH: ${env.GIT_BRANCH}"
             }
