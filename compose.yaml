@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  helloworld:
+    build: .
+    container_name: helloworld
+    image: maheshboyalla/helloworld
+    ports:
+      - "8080:8080"
+    networks:
+      - demo-net
+    volumes:
+      - ./build/libs/helloworld-0.0.1-SNAPSHOT.jar:/app.jar
+    environment:
+          - SPRING_PROFILES_ACTIVE=dev
+    command: ["java", "-jar", "/app.jar"]
+
+  another-service:
+    image: nginx:latest
+    ports:
+      - "8081:80"
+    networks:
+      - demo-net
+
+networks:
+  demo-net:
+    driver: bridge
