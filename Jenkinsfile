@@ -22,7 +22,9 @@ pipeline {
            steps {
                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                    sh '''
-                       echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                       mkdir -p ~/.docker-no-creds
+                        echo '{ "credsStore": "" }' > ~/.docker-no-creds/config.json
+                         DOCKER_CONFIG=~/.docker-no-creds echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         # Stop and remove previous containers
                         docker-compose down
                        # Build using docker-compose
