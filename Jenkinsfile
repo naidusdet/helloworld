@@ -12,6 +12,10 @@ pipeline {
                 branch 'master'
             }
             steps {
+                echo "BRANCH_NAME: ${env.BRANCH_NAME}"
+                echo "GIT_BRANCH: ${env.GIT_BRANCH}"
+            }
+            steps {
                 git 'https://github.com/naidusdet/helloworld.git'
             }
         }
