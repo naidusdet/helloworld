@@ -26,7 +26,7 @@ public class HelloWorldController {
 
     @GetMapping("/hello")
     public String hello() {
-        return "Hello, Mahesh Boyalla Welcome to  GCP 2025 +" +
+        return "Hello, Hanita Welcome to  GCP 2025 +" +
                 "Digital Ways to Pay Lab EDB.";
     }
 
