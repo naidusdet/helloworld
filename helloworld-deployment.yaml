@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helloworld-deployment
+spec:
+  replicas: 2  # Number of pods to run
+  selector:
+    matchLabels:
+      app: helloworld
+  template:
+    metadata:
+      labels:
+        app: helloworld
+    spec:
+      containers:
+        - name: helloworld
+          image: maheshboyalla/helloworld:latest  # Ensure using 'latest'
+          imagePullPolicy: Always  # Force Kubernetes to pull the latest image
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: helloworld-config
+                  key: SPRING_PROFILES_ACTIVE
+            - name: CUSTOM_MESSAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: helloworld-config
+                  key: CUSTOM_MESSAGE
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: helloworld-secrets
+                  key: db-password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: helloworld-service
+spec:
+  selector:
+    app: helloworld
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: NodePort
