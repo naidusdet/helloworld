@@ -6,47 +6,86 @@ pipeline {
         KUBECONFIG = "$HOME/.kube/config"
     }
 
+    options {
+        skipDefaultCheckout(true) // Jenkins already checks out source
+    }
+
     stages {
-        stage('Checkout') {
+        stage('Check Branch') {
+            when {
+                not {
+                    branch 'master'
+                }
+            }
             steps {
-                git 'https://github.com/naidusdet/helloworld.git'
+                echo "⛔ Skipping build — this pipeline runs only on 'master' branch."
+                script {
+                    currentBuild.result = 'NOT_BUILT'
+                    error("Build aborted: not on 'master' branch.")
+                }
             }
         }
+
         stage('Build') {
+            when {
+                branch 'master'
+            }
             steps {
                 sh 'ls -la'
                 sh './gradlew clean build'
             }
         }
-       stage('Docker Compose Build & Push') {
-           steps {
-               withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                   sh '''
-                       mkdir -p ~/.docker-no-creds
+
+        stage('Docker Compose Build & Push') {
+            when {
+                branch 'master'
+            }
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "🔧 Logging in to Docker..."
+                        mkdir -p ~/.docker-no-creds
                         echo '{ "credsStore": "" }' > ~/.docker-no-creds/config.json
-                         DOCKER_CONFIG=~/.docker-no-creds echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        # Stop and remove previous containers
+
+                        export DOCKER_CONFIG=~/.docker-no-creds
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                        echo "🧹 Cleaning up old containers..."
+                        docker-compose down || true
+
+                        echo "🐳 Building image with docker-compose..."
+                        export DOCKER_IMAGE=$DOCKER_IMAGE
+                        docker-compose up --build -d
+
+                        echo "📦 Pushing image to Docker Hub..."
+                        docker push $DOCKER_IMAGE
+
+                        echo "🧹 Shutting down containers..."
                         docker-compose down
-                       # Build using docker-compose
-                       DOCKER_IMAGE=$DOCKER_IMAGE docker-compose up --build -d
 
-                       # Push the built image manually (docker-compose does not push images)
-                       docker push $DOCKER_IMAGE
-
-                       docker-compose down
-                       docker logout
-                   '''
-               }
-           }
-       }
+                        docker logout
+                    '''
+                }
+            }
+        }
 
         stage('Deploy to Kubernetes') {
+            when {
+                branch 'master'
+            }
             steps {
-                sh 'kubectl apply -f helloworld-config.yaml'
-                sh 'kubectl apply -f helloworld-deployment.yaml'
-                sh 'kubectl apply -f services.yaml'
-                sh 'kubectl apply -f helloworld-ingress.yaml'
-                sh 'kubectl rollout restart deployment helloworld-deployment'
+                sh '''
+                    echo "🚀 Deploying to Kubernetes..."
+                    kubectl apply -f helloworld-config.yaml
+                    kubectl apply -f helloworld-deployment.yaml
+                    kubectl apply -f services.yaml
+                    kubectl apply -f helloworld-ingress.yaml
+                    kubectl rollout restart deployment helloworld-deployment
+                '''
             }
         }
     }
@@ -55,12 +94,12 @@ pipeline {
         success {
             mail to: 'emailmenaidu@gmail.com',
                  subject: "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Build succeeded. View it at ${env.BUILD_URL}"
+                 body: "Build on master succeeded. View at ${env.BUILD_URL}"
         }
         failure {
             mail to: 'emailmenaidu@gmail.com',
                  subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Build failed. Check logs at ${env.BUILD_URL}"
+                 body: "Build on master failed. Check logs at ${env.BUILD_URL}"
         }
     }
 }
